@@ -1,0 +1,38 @@
+name: th2_smart_note
+description: "A smart note application for students - Production Environment Setup."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  # Thiết lập SDK từ 3.0.0 trở lên đảm bảo Null-safety hoàn toàn
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Quản lý trạng thái (MVVM)
+  provider: ^6.1.1
+
+  # Lưu trữ dữ liệu Local
+  shared_preferences: ^2.2.2
+
+  # Giao diện lưới Masonry
+  flutter_staggered_grid_view: ^0.7.0
+
+  # Định dạng ngày tháng
+  intl: ^0.19.0
+
+  # Icon và font mặc định
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/empty_state.png
