@@ -1,6 +1,15 @@
+// /views/editor/editor_screen.dart
+
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart'; // Đừng quên import intl để định dạng ngày
 import '../../models/note_model.dart';
 import '../../viewmodels/note_viewmodel.dart';
 
@@ -16,7 +25,9 @@ class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   Timer? _debounce;
-  Note? _currentNote; // Vá lỗi Duplicate bằng cách theo dõi note hiện tại
+  Note? _currentNote;
+  String? _imagePath;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -25,6 +36,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _titleController = TextEditingController(text: _currentNote?.title ?? '');
     _contentController =
         TextEditingController(text: _currentNote?.content ?? '');
+    _imagePath = _currentNote?.imagePath;
   }
 
   @override
@@ -37,82 +49,175 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void _onTextChanged(String value) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(seconds: 2),
-        () => _saveNote()); // Debounce 2s để vượt bài test Kill App
+    _debounce = Timer(const Duration(seconds: 2), () => _saveNote());
   }
 
   Future<void> _saveNote() async {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
-    if (title.isEmpty && content.isEmpty)
-      return; // Không lưu nếu rỗng [cite: 755]
+    if (title.isEmpty && content.isEmpty) return;
 
     final finalTitle = title.isEmpty ? "Ghi chú không có tiêu đề" : title;
     final viewModel = context.read<NoteViewModel>();
     final now = DateTime.now();
 
-    if (_currentNote == null) {
-      final newNote = Note(
-        id: now.millisecondsSinceEpoch.toString(),
-        title: finalTitle,
-        content: content,
-        createdAt: now,
-        updatedAt: now,
-      );
-      await viewModel.addNote(newNote);
-      _currentNote =
-          newNote; // Cập nhật tham chiếu ngay lập tức để tránh Duplicate
-    } else {
-      final updatedNote = _currentNote!
-          .copyWith(title: finalTitle, content: content, updatedAt: now);
-      await viewModel.updateNote(updatedNote);
-      _currentNote = updatedNote;
+    try {
+      if (_currentNote == null) {
+        final newNote = Note(
+          id: '',
+          title: finalTitle,
+          content: content,
+          createdAt: now,
+          updatedAt: now,
+          imagePath: _imagePath,
+        );
+        await viewModel.addNote(newNote);
+        _currentNote = newNote;
+      } else {
+        final updatedNote = _currentNote!.copyWith(
+          title: finalTitle,
+          content: content,
+          updatedAt: now,
+          imagePath: _imagePath,
+        );
+        await viewModel.updateNote(updatedNote);
+        _currentNote = updatedNote;
+      }
+    } catch (e) {
+      debugPrint("Lỗi lưu Cloud: $e");
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(
+        source: ImageSource.gallery, maxWidth: 800, imageQuality: 70);
+    if (picked != null) {
+      if (kIsWeb) {
+        final bytes = await picked.readAsBytes();
+        setState(
+            () => _imagePath = 'data:image/png;base64,${base64Encode(bytes)}');
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        final saved = await File(picked.path)
+            .copy('${dir.path}/${p.basename(picked.path)}');
+        setState(() => _imagePath = saved.path);
+      }
+      _saveNote();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final now = _currentNote?.updatedAt ?? DateTime.now();
+    final timeStr = DateFormat('HH:mm, dd/MM/yyyy').format(now);
+
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) await _saveNote(); // Auto-save khi Back [cite: 659, 750]
+        if (didPop) await _saveNote();
       },
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-            backgroundColor: Colors.white,
-            iconTheme: const IconThemeData(color: Colors.blue),
-            elevation: 0),
-        body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              TextField(
-                controller: _titleController,
-                onChanged: _onTextChanged,
-                style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue),
-                decoration: const InputDecoration(
-                    hintText: 'Tiêu đề...',
-                    border: InputBorder.none), // Ẩn viền [cite: 655]
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new,
+                color: Color(0xFF0277BD)), // Ocean Blue
+            onPressed: () => Navigator.pop(context),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add_photo_alternate_outlined,
+                  color: Color(0xFF0277BD)),
+              onPressed: _pickImage,
+            ),
+            if (_imagePath != null)
+              IconButton(
+                icon: const Icon(Icons.image_not_supported_outlined,
+                    color: Colors.redAccent),
+                onPressed: () {
+                  setState(() => _imagePath = null);
+                  _saveNote();
+                },
               ),
-              const Divider(),
-              Expanded(
-                child: TextField(
-                  controller: _contentController,
-                  onChanged: _onTextChanged,
-                  maxLines: null, // Nhập liệu đa dòng [cite: 656, 743]
-                  keyboardType: TextInputType.multiline,
-                  style: const TextStyle(fontSize: 18),
-                  decoration: const InputDecoration(
-                      hintText: 'Bắt đầu nhập nội dung...',
-                      border: InputBorder.none),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Hiển thị ảnh dạng "Banner" bo góc đẹp
+                    if (_imagePath != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: kIsWeb || _imagePath!.startsWith('data')
+                              ? Image.network(_imagePath!,
+                                  width: double.infinity, fit: BoxFit.cover)
+                              : Image.file(File(_imagePath!),
+                                  width: double.infinity, fit: BoxFit.cover),
+                        ),
+                      ),
+
+                    // TextField Tiêu đề với phông chữ lớn, hiện đại
+                    TextField(
+                      controller: _titleController,
+                      onChanged: _onTextChanged,
+                      style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF004C8C)), // Primary Dark
+                      decoration: const InputDecoration(
+                        hintText: 'Tiêu đề',
+                        hintStyle: TextStyle(color: Colors.grey),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                    const Divider(height: 1, thickness: 0.5),
+
+                    // TextField Nội dung
+                    TextField(
+                      controller: _contentController,
+                      onChanged: _onTextChanged,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                          fontSize: 18, height: 1.5, color: Colors.black87),
+                      decoration: const InputDecoration(
+                        hintText: 'Bắt đầu ghi chú tại đây...',
+                        hintStyle: TextStyle(color: Colors.grey, fontSize: 16),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+
+            // Thanh trạng thái dưới cùng hiển thị thời gian cập nhật
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+              color: const Color(0xFFF1F8FF), // Xanh nhạt dịu mắt
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Lần cuối chỉnh sửa: $timeStr',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.blueGrey,
+                        fontStyle: FontStyle.italic),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

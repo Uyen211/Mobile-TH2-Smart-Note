@@ -1,16 +1,29 @@
+// main.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'viewmodels/note_viewmodel.dart';
+import 'viewmodels/auth_viewmodel.dart';
 import 'views/home/home_screen.dart';
+import 'views/auth/login_screen.dart';
 import 'core/theme.dart';
 
-void main() {
+void main() async {
   // Đảm bảo các dịch vụ của Flutter được khởi tạo trước khi chạy App
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Khởi tạo Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(
     MultiProvider(
       providers: [
+        // Cung cấp AuthViewModel để quản lý trạng thái đăng nhập
+        ChangeNotifierProvider(create: (_) => AuthViewModel()),
         // Cung cấp NoteViewModel cho toàn bộ ứng dụng để quản lý State
         ChangeNotifierProvider(create: (_) => NoteViewModel()),
       ],
@@ -35,7 +48,13 @@ class SmartNoteApp extends StatelessWidget {
       // hãy tạm thời để nó sử dụng theme mặc định hoặc lightTheme để tránh lỗi
       themeMode: ThemeMode.light,
 
-      home: const HomeScreen(), // Điểm khởi đầu của ứng dụng
+      home: Consumer<AuthViewModel>(
+        builder: (context, authVM, _) {
+          // Nếu user đã đăng nhập, hiển thị HomeScreen
+          // Nếu chưa đăng nhập, hiển thị LoginScreen
+          return authVM.isLoggedIn ? const HomeScreen() : const LoginScreen();
+        },
+      ),
     );
   }
 }

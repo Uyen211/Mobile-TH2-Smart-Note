@@ -27,6 +27,17 @@ dependencies:
   # Icon và font mặc định
   cupertino_icons: ^1.0.6
 
+  # Thư viện xử lý hình ảnh và bộ nhớ
+  image_picker: ^0.8.7+4
+  path_provider: ^2.0.15
+  path: ^1.8.3
+
+  # --- NHÓM THƯ VIỆN FIREBASE ---
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  cloud_firestore: ^6.1.2
+  google_sign_in: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

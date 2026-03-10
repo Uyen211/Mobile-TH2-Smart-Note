@@ -1,7 +1,10 @@
+// home/home_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/note_viewmodel.dart';
+import '../../viewmodels/auth_viewmodel.dart';
 import '../../models/note_model.dart';
 import '../editor/editor_screen.dart';
 import 'widgets/note_card.dart';
@@ -17,47 +20,83 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Bước 1: Khởi động App -> Đọc dữ liệu từ thiết bị [cite: 629]
+    // Khởi tạo lắng nghe dữ liệu từ Cloud Firestore ngay khi vào App [cite: 1301-1306]
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<NoteViewModel>().loadNotes();
     });
   }
 
-  // Luồng Navigation: Đợi người dùng quay lại và tự động cập nhật dữ liệu [cite: 638, 735]
+  // Điều hướng sang Editor. Nhờ cơ chế Stream, chúng ta không cần refresh thủ công nữa.
   Future<void> _navigateToEditor(BuildContext context, [Note? note]) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => EditorScreen(note: note)),
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            EditorScreen(note: note),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final tween = Tween(begin: const Offset(0, 0.08), end: Offset.zero)
+              .chain(CurveTween(curve: Curves.easeOut));
+          return SlideTransition(
+            position: animation.drive(tween),
+            child: FadeTransition(opacity: animation, child: child),
+          );
+        },
+      ),
     );
-    // Sau khi pop, thực hiện refresh để hiển thị dữ liệu mới nhất [cite: 660, 735]
-    if (mounted) {
-      await context.read<NoteViewModel>().loadNotes();
-    }
+    // Bỏ qua lệnh vm.loadNotes() ở đây vì Stream đã tự động cập nhật
   }
 
   @override
   Widget build(BuildContext context) {
+    // Theo dõi ViewModel để cập nhật UI khi danh sách ghi chú thay đổi [cite: 1336]
     final viewModel = context.watch<NoteViewModel>();
 
     return Scaffold(
       appBar: AppBar(
-        // Định danh bắt buộc: Smart Note - [Họ tên] - [MSSV]
+        // Giữ nguyên định danh cá nhân theo yêu cầu
         title: const Text('Smart Note - Nguyễn Hà Phương Uyên - 2351170632'),
         centerTitle: true,
         elevation: 2,
+        actions: [
+          Consumer<AuthViewModel>(
+            builder: (context, authVM, _) {
+              return PopupMenuButton<String>(
+                onSelected: (String value) {
+                  if (value == 'logout') {
+                    _showLogoutConfirm(context, authVM);
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Đăng xuất'),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Thanh tìm kiếm: Bo góc tròn, lọc kết quả real-time [cite: 642, 643]
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
-              onChanged: (value) => viewModel.search(value),
+              onChanged: (value) => viewModel
+                  .search(value), // Lọc real-time cục bộ [cite: 511, 1373]
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm tiêu đề...',
                 prefixIcon: const Icon(Icons.search, color: Colors.blue),
                 filled: true,
-                fillColor: Colors.blue.withOpacity(0.05),
+                fillColor: const Color.fromRGBO(33, 150, 243, 0.05),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -68,20 +107,20 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(child: _buildMainContent(viewModel)),
         ],
       ),
-      // Nút Thêm mới (FAB) [cite: 653]
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToEditor(context),
+        onPressed: () =>
+            _navigateToEditor(context), // Mở màn hình tạo mới [cite: 1388-1390]
         child: const Icon(Icons.add, size: 30),
       ),
     );
   }
 
   Widget _buildMainContent(NoteViewModel viewModel) {
-    // Hiển thị trạng thái trống nếu không có dữ liệu [cite: 630, 652]
+    // Hiển thị trạng thái trống nếu Firebase chưa có dữ liệu [cite: 1395-1397]
     if (viewModel.isEmpty || viewModel.notes.isEmpty) {
       return Center(
         child: Opacity(
-          opacity: 0.3, // Hình ảnh minh họa mờ [cite: 740]
+          opacity: 0.3,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -103,16 +142,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: MasonryGridView.count(
-        crossAxisCount: 2, // Lưới 2 cột bắt buộc [cite: 645, 745]
+        crossAxisCount: 2, // Lưới 2 cột theo yêu cầu [cite: 1415]
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
         itemCount: viewModel.notes.length,
         itemBuilder: (context, index) {
           final note = viewModel.notes[index];
           return Dismissible(
-            key: Key(note.id),
+            key: Key(note.id), // ID từ Firestore Document [cite: 1422]
             direction: DismissDirection.horizontal,
-            // Nền đỏ và icon thùng rác khi vuốt để xóa [cite: 663]
             background: Container(
               decoration: BoxDecoration(
                 color: Colors.red,
@@ -122,14 +160,13 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.only(right: 20),
               child: const Icon(Icons.delete, color: Colors.white),
             ),
-            // Hộp thoại xác nhận trước khi thực hiện xóa [cite: 664, 665]
             confirmDismiss: (direction) async {
               return await showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Xác nhận xóa'),
                   content: const Text(
-                      'Bạn có chắc chắn muốn xóa ghi chú này không?'),
+                      'Bạn có chắc chắn muốn xóa ghi chú này không?'), // [cite: 1434-1436]
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -144,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
+            // Gọi hàm xóa trên Firestore [cite: 1458]
             onDismissed: (_) => viewModel.deleteNote(note.id),
             child: NoteCard(
               note: note,
@@ -151,6 +189,30 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showLogoutConfirm(BuildContext context, AuthViewModel authVM) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận đăng xuất'),
+        content: const Text(
+            'Bạn có chắc chắn muốn đăng xuất không?'), // [cite: 1466-1468]
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              authVM.logout(); // Xử lý đăng xuất [cite: 1477]
+            },
+            child: const Text('Đăng xuất', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
