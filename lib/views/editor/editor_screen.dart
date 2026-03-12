@@ -1,5 +1,3 @@
-// /views/editor/editor_screen.dart
-
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
@@ -9,9 +7,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Đừng quên import intl để định dạng ngày
+import 'package:intl/intl.dart';
 import '../../models/note_model.dart';
 import '../../viewmodels/note_viewmodel.dart';
+import '../../services/supabase_storage_service.dart';
 
 class EditorScreen extends StatefulWidget {
   final Note? note;
@@ -28,6 +27,7 @@ class _EditorScreenState extends State<EditorScreen> {
   Note? _currentNote;
   String? _imagePath;
   final ImagePicker _picker = ImagePicker();
+  final SupabaseStorageService _storageService = SupabaseStorageService();
 
   @override
   void initState() {
@@ -92,17 +92,20 @@ class _EditorScreenState extends State<EditorScreen> {
     final picked = await _picker.pickImage(
         source: ImageSource.gallery, maxWidth: 800, imageQuality: 70);
     if (picked != null) {
+      String? imageUrl;
       if (kIsWeb) {
         final bytes = await picked.readAsBytes();
-        setState(
-            () => _imagePath = 'data:image/png;base64,${base64Encode(bytes)}');
+        imageUrl = 'data:image/png;base64,${base64Encode(bytes)}';
       } else {
-        final dir = await getApplicationDocumentsDirectory();
-        final saved = await File(picked.path)
-            .copy('${dir.path}/${p.basename(picked.path)}');
-        setState(() => _imagePath = saved.path);
+        final file = File(picked.path);
+        final fileName =
+            'note_${DateTime.now().millisecondsSinceEpoch}${p.extension(file.path)}';
+        imageUrl = await _storageService.uploadImage(file, fileName);
       }
-      _saveNote();
+      if (imageUrl != null) {
+        setState(() => _imagePath = imageUrl);
+        _onTextChanged('');
+      }
     }
   }
 
@@ -122,8 +125,8 @@ class _EditorScreenState extends State<EditorScreen> {
           backgroundColor: Colors.white,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new,
-                color: Color(0xFF0277BD)), // Ocean Blue
+            icon:
+                const Icon(Icons.arrow_back_ios_new, color: Color(0xFF0277BD)),
             onPressed: () => Navigator.pop(context),
           ),
           actions: [
@@ -151,7 +154,6 @@ class _EditorScreenState extends State<EditorScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Hiển thị ảnh dạng "Banner" bo góc đẹp
                     if (_imagePath != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 20),
@@ -164,15 +166,13 @@ class _EditorScreenState extends State<EditorScreen> {
                                   width: double.infinity, fit: BoxFit.cover),
                         ),
                       ),
-
-                    // TextField Tiêu đề với phông chữ lớn, hiện đại
                     TextField(
                       controller: _titleController,
                       onChanged: _onTextChanged,
                       style: const TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF004C8C)), // Primary Dark
+                          color: Color(0xFF004C8C)),
                       decoration: const InputDecoration(
                         hintText: 'Tiêu đề',
                         hintStyle: TextStyle(color: Colors.grey),
@@ -180,8 +180,6 @@ class _EditorScreenState extends State<EditorScreen> {
                       ),
                     ),
                     const Divider(height: 1, thickness: 0.5),
-
-                    // TextField Nội dung
                     TextField(
                       controller: _contentController,
                       onChanged: _onTextChanged,
@@ -199,11 +197,9 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               ),
             ),
-
-            // Thanh trạng thái dưới cùng hiển thị thời gian cập nhật
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-              color: const Color(0xFFF1F8FF), // Xanh nhạt dịu mắt
+              color: const Color(0xFFF1F8FF),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

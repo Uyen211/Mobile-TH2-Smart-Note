@@ -10,6 +10,9 @@ import 'views/home/home_screen.dart';
 import 'views/auth/login_screen.dart';
 import 'core/theme.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_options.dart';
+
 void main() async {
   // Đảm bảo các dịch vụ của Flutter được khởi tạo trước khi chạy App
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +20,12 @@ void main() async {
   // Khởi tạo Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Khởi tạo Supabase
+  await Supabase.initialize(
+    url: SupabaseOptions.supabaseUrl,
+    anonKey: SupabaseOptions.supabaseAnonKey,
   );
 
   runApp(

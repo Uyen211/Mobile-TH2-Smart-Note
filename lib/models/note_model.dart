@@ -47,6 +47,18 @@ class Note {
     );
   }
 
+  // Supabase: fromMap
+  factory Note.fromMap(Map<String, dynamic> data) {
+    return Note(
+      id: data['id'] ?? '',
+      title: data['title'] ?? '',
+      content: data['content'] ?? '',
+      imagePath: data['imagePath'],
+      createdAt: DateTime.parse(data['created_at'] ?? data['createdAt']),
+      updatedAt: DateTime.parse(data['updated_at'] ?? data['updatedAt']),
+    );
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'title': title,
@@ -54,6 +66,18 @@ class Note {
       'imagePath': imagePath,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+
+  // Supabase: toMap
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'imagePath': imagePath,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
     };
   }
 }

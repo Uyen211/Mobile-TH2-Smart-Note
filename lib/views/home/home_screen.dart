@@ -20,9 +20,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Khởi tạo lắng nghe dữ liệu từ Cloud Firestore ngay khi vào App [cite: 1301-1306]
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NoteViewModel>().loadNotes();
+      final authVM = context.read<AuthViewModel>();
+      final noteVM = context.read<NoteViewModel>();
+      final user = authVM.currentUser;
+      if (user != null) {
+        noteVM.setUserId(user.uid);
+      }
     });
   }
 

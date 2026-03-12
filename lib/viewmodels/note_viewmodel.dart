@@ -1,54 +1,59 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:th2_smart_note/models/note_model.dart';
-import 'package:th2_smart_note/services/firestore_service.dart';
+import 'package:th2_smart_note/services/supabase_database_service.dart';
 
 class NoteViewModel extends ChangeNotifier {
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseDatabaseService _dbService = SupabaseDatabaseService();
   List<Note> _notes = [];
   List<Note> _filteredNotes = [];
-  StreamSubscription<List<Note>>? _notesSubscription;
+  String? _userId;
 
   List<Note> get notes => _filteredNotes;
   bool get isEmpty => _notes.isEmpty;
 
-  void loadNotes() {
+  void setUserId(String userId) {
+    _userId = userId;
+    loadNotes();
+  }
+
+  Future<void> loadNotes() async {
+    if (_userId == null) return;
     try {
-      _notesSubscription?.cancel();
-      _notesSubscription = _firestoreService.getNotes().listen(
-        (notesList) {
-          _notes = notesList;
-          _filteredNotes = List.from(_notes);
-          notifyListeners();
-        },
-        onError: (error) => debugPrint("Lỗi Stream: $error"),
-      );
+      final notesList = await _dbService.getNotes(_userId!);
+      _notes = notesList;
+      _filteredNotes = List.from(_notes);
+      notifyListeners();
     } catch (e) {
-      debugPrint("Lỗi khởi tạo loadNotes: $e");
+      debugPrint("Lỗi loadNotes Supabase: $e");
     }
   }
 
   Future<void> addNote(Note note) async {
+    if (_userId == null) return;
     try {
-      await _firestoreService.addNote(note);
+      await _dbService.addNote(note, _userId!);
+      await loadNotes();
     } catch (e) {
-      debugPrint("Lỗi thêm ghi chú: $e");
+      debugPrint("Lỗi thêm ghi chú Supabase: $e");
     }
   }
 
   Future<void> updateNote(Note note) async {
     try {
-      await _firestoreService.updateNote(note);
+      await _dbService.updateNote(note);
+      await loadNotes();
     } catch (e) {
-      debugPrint("Lỗi cập nhật ghi chú: $e");
+      debugPrint("Lỗi cập nhật ghi chú Supabase: $e");
     }
   }
 
   Future<void> deleteNote(String id) async {
     try {
-      await _firestoreService.deleteNote(id);
+      await _dbService.deleteNote(id);
+      await loadNotes();
     } catch (e) {
-      debugPrint("Lỗi xóa ghi chú: $e");
+      debugPrint("Lỗi xóa ghi chú Supabase: $e");
     }
   }
 
@@ -61,11 +66,5 @@ class NoteViewModel extends ChangeNotifier {
           .toList();
     }
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    _notesSubscription?.cancel();
-    super.dispose();
   }
 }
