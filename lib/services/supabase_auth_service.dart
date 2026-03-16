@@ -1,7 +1,15 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseAuthService {
-  final SupabaseClient _client = Supabase.instance.client;
+  SupabaseClient get _client {
+    try {
+      return Supabase.instance.client;
+    } catch (e) {
+      throw Exception('Supabase chưa được khởi tạo: $e');
+    }
+  }
 
   // Đăng ký tài khoản mới
   Future<AuthResponse> signUp({
@@ -17,7 +25,7 @@ class SupabaseAuthService {
     return response;
   }
 
-  // Đăng nhập
+  // Đăng nhập bằng Email/Password
   Future<AuthResponse> signIn({
     required String email,
     required String password,
@@ -27,6 +35,32 @@ class SupabaseAuthService {
       password: password,
     );
     return response;
+  }
+
+  // Đăng nhập bằng Google - Web & Mobile compatible
+  Future<bool> signInWithGoogle() async {
+    try {
+      // Web: Không dùng redirectTo, Supabase tự handle callback
+      // Mobile: Dùng deep link
+      if (kIsWeb) {
+        // Web: Supabase sẽ tự handle redirect callback
+        // Không cần chỉ định redirectTo
+        final result = await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+        );
+        return result;
+      } else {
+        // Mobile: Dùng deep link
+        final result = await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: 'io.supabase.smartnote://login-callback/',
+        );
+        return result;
+      }
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      throw Exception('Lỗi đăng nhập Google: $e');
+    }
   }
 
   // Đăng xuất

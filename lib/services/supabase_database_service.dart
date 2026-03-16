@@ -2,7 +2,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/note_model.dart';
 
 class SupabaseDatabaseService {
-  final SupabaseClient _client = Supabase.instance.client;
+  SupabaseClient get _client {
+    try {
+      return Supabase.instance.client;
+    } catch (e) {
+      throw Exception('Supabase chưa được khởi tạo: $e');
+    }
+  }
+
   final String table = 'notes';
 
   // Lấy danh sách ghi chú

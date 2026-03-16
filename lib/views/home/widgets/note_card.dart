@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb; // Cần thiết để kiểm tra nền tảng Web
-import '../../../models/note_model.dart'; // Sử dụng Package Import để tránh lỗi
+import '../../../models/note_model.dart';
+import '../../../models/weather_model.dart'; // Import Weather model
 
 class NoteCard extends StatelessWidget {
   final Note note;
@@ -62,6 +63,12 @@ class NoteCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
+              // Hiển thị thông tin thời tiết (nếu có)
+              if (note.weather != null) ...[
+                _buildWeatherWidget(note.weather!),
+                const SizedBox(height: 10),
+              ],
+
               // Hiển thị thời gian cập nhật ở góc dưới bên phải
               Align(
                 alignment: Alignment.bottomRight,
@@ -106,5 +113,128 @@ class NoteCard extends StatelessWidget {
         ),
       );
     }
+  }
+
+  // Hàm để hiển thị thông tin thời tiết
+  Widget _buildWeatherWidget(Weather weather) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: Tiêu đề thời tiết
+          Row(
+            children: [
+              const Icon(Icons.cloud, size: 18, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Thời tiết: ${weather.city}, ${weather.country}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    color: Colors.blue,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Thông tin chi tiết thời tiết
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Nhiệt độ
+              Expanded(
+                child: Column(
+                  children: [
+                    const Icon(Icons.thermostat, size: 16, color: Colors.red),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${weather.temperature.toStringAsFixed(1)}°C',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Cảm giác: ${weather.feelsLike.toStringAsFixed(1)}°C',
+                      style: const TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              // Độ ẩm
+              Expanded(
+                child: Column(
+                  children: [
+                    const Icon(Icons.opacity, size: 16, color: Colors.cyan),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${weather.humidity}%',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'Độ ẩm',
+                      style: TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              // Tốc độ gió
+              Expanded(
+                child: Column(
+                  children: [
+                    const Icon(Icons.air, size: 16, color: Colors.teal),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${weather.windSpeed.toStringAsFixed(1)} m/s',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'Gió',
+                      style: TextStyle(fontSize: 9, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Mô tả thời tiết
+          Row(
+            children: [
+              const Icon(Icons.description, size: 14, color: Colors.orange),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  weather.description,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

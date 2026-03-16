@@ -1,5 +1,3 @@
-// views/auth/register_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/auth_viewmodel.dart';
@@ -42,10 +40,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
-    // 1. Kiểm tra Validate của Form
     if (!_formKey.currentState!.validate()) return;
 
-    // 2. Kiểm tra Điều khoản
     if (!_agreeToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng chấp nhận điều khoản dịch vụ')),
@@ -153,8 +149,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-
-  // --- Widget Helpers ---
 
   Widget _buildLabel(String text) {
     return Padding(

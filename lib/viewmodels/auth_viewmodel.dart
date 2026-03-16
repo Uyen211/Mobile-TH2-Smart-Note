@@ -1,13 +1,11 @@
-// viewmodels/auth_viewmodel.dart
-
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart'; // Đảm bảo đã thêm package này vào pubspec.yaml
-import '../services/auth_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/supabase_auth_service.dart';
 
 class AuthViewModel extends ChangeNotifier {
-  final AuthService _authService = AuthService();
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final SupabaseAuthService _authService = SupabaseAuthService();
+  late StreamSubscription<AuthState> _authStateSubscription;
 
   User? _currentUser;
   bool _isLoading = false;
@@ -21,39 +19,43 @@ class AuthViewModel extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
 
   AuthViewModel() {
-    // Theo dõi trạng thái Firebase Auth
-    FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      _currentUser = user;
-      _isLoggedIn = user != null;
-      notifyListeners();
-    });
+    _initAuthListener();
   }
 
-  // --- HÀM FIX LỖI DÒNG 55: ĐĂNG NHẬP GOOGLE ---
+  void _initAuthListener() {
+    try {
+      // Theo dõi trạng thái Supabase Auth
+      _authStateSubscription =
+          _authService.authStateChanges.listen((AuthState state) {
+        _currentUser = state.session?.user;
+        _isLoggedIn = state.session?.user != null;
+        notifyListeners();
+      }, onError: (e) {
+        debugPrint('Auth state error: $e');
+        _errorMessage = 'Lỗi theo dõi trạng thái đăng nhập';
+        notifyListeners();
+      });
+    } catch (e) {
+      debugPrint('Error initializing auth listener: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription.cancel();
+    super.dispose();
+  }
+
+  // --- ĐĂNG NHẬP GOOGLE BẰNG SUPABASE ---
   Future<bool> loginWithGoogle() async {
     try {
       _isLoading = true;
       _errorMessage = null;
       notifyListeners();
 
-      // Sử dụng GoogleSignIn để lấy thông tin xác thực
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        _isLoading = false;
-        notifyListeners();
-        return false; // Người dùng hủy đăng nhập
-      }
+      await _authService.signInWithGoogle();
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Đăng nhập vào Firebase bằng Credential
-      await FirebaseAuth.instance.signInWithCredential(credential);
-
+      // OAuth sẽ mở trình duyệt, trạng thái isLoading sẽ tự tắt khi app reload lại từ Deep Link
       _isLoading = false;
       notifyListeners();
       return true;
@@ -106,7 +108,7 @@ class AuthViewModel extends ChangeNotifier {
       await _authService.signUp(
         email: email,
         password: password,
-        displayName: fullName,
+        fullName: fullName,
       );
 
       _isLoading = false;
@@ -121,7 +123,6 @@ class AuthViewModel extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _googleSignIn.signOut();
     await _authService.signOut();
   }
 
@@ -130,19 +131,18 @@ class AuthViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Xử lý thông báo lỗi chuẩn Supabase
   String _getErrorMessage(dynamic error) {
-    if (error is FirebaseAuthException) {
-      switch (error.code) {
-        case 'user-not-found':
-          return 'Tài khoản không tồn tại';
-        case 'wrong-password':
-          return 'Mật khẩu không chính xác';
-        case 'email-already-in-use':
-          return 'Email đã được sử dụng';
-        case 'invalid-email':
-          return 'Email không hợp lệ';
+    if (error is AuthException) {
+      switch (error.message) {
+        case 'Invalid login credentials':
+          return 'Email hoặc mật khẩu không chính xác';
+        case 'User already registered':
+          return 'Email này đã được sử dụng';
+        case 'Password should be at least 6 characters.':
+          return 'Mật khẩu phải có ít nhất 6 ký tự';
         default:
-          return 'Lỗi: ${error.message}';
+          return error.message;
       }
     }
     return 'Lỗi: ${error.toString()}';

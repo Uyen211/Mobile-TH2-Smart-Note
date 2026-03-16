@@ -4,11 +4,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import '../../models/note_model.dart';
+import '../../models/weather_model.dart';
 import '../../viewmodels/note_viewmodel.dart';
 import '../../services/supabase_storage_service.dart';
 
@@ -23,9 +24,11 @@ class EditorScreen extends StatefulWidget {
 class _EditorScreenState extends State<EditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
+  late TextEditingController _cityController;
   Timer? _debounce;
   Note? _currentNote;
   String? _imagePath;
+  bool _isLoadingWeather = false;
   final ImagePicker _picker = ImagePicker();
   final SupabaseStorageService _storageService = SupabaseStorageService();
 
@@ -36,6 +39,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _titleController = TextEditingController(text: _currentNote?.title ?? '');
     _contentController =
         TextEditingController(text: _currentNote?.content ?? '');
+    _cityController = TextEditingController();
     _imagePath = _currentNote?.imagePath;
   }
 
@@ -44,6 +48,7 @@ class _EditorScreenState extends State<EditorScreen> {
     _debounce?.cancel();
     _titleController.dispose();
     _contentController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -64,7 +69,7 @@ class _EditorScreenState extends State<EditorScreen> {
     try {
       if (_currentNote == null) {
         final newNote = Note(
-          id: '',
+          id: const Uuid().v4(),
           title: finalTitle,
           content: content,
           createdAt: now,
@@ -105,6 +110,57 @@ class _EditorScreenState extends State<EditorScreen> {
       if (imageUrl != null) {
         setState(() => _imagePath = imageUrl);
         _onTextChanged('');
+      }
+    }
+  }
+
+  Future<void> _fetchWeatherByCity() async {
+    final city = _cityController.text.trim();
+    if (city.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập tên thành phố')),
+      );
+      return;
+    }
+
+    setState(() => _isLoadingWeather = true);
+
+    try {
+      final viewModel = context.read<NoteViewModel>();
+      final weather = await viewModel.fetchWeatherByCity(city);
+      if (weather != null) {
+        setState(() {
+          _currentNote = _currentNote?.copyWith(weather: weather) ??
+              Note(
+                id: const Uuid().v4(),
+                title: 'Ghi chú',
+                content: '',
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+                weather: weather,
+              );
+          _isLoadingWeather = false;
+          _cityController.clear();
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('✅ Lấy thời tiết: ${weather.city}')),
+          );
+        }
+      } else {
+        setState(() => _isLoadingWeather = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('❌ Không tìm được thành phố')),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isLoadingWeather = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Lỗi: $e')),
+        );
       }
     }
   }
@@ -166,6 +222,56 @@ class _EditorScreenState extends State<EditorScreen> {
                                   width: double.infinity, fit: BoxFit.cover),
                         ),
                       ),
+                    // Input thành phố để fetch thời tiết
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _cityController,
+                              decoration: InputDecoration(
+                                hintText: 'Nhập tên thành phố...',
+                                hintStyle: const TextStyle(
+                                    color: Colors.grey, fontSize: 14),
+                                prefixIcon:
+                                    const Icon(Icons.location_on, size: 20),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed:
+                                _isLoadingWeather ? null : _fetchWeatherByCity,
+                            icon: _isLoadingWeather
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.cloud_download),
+                            label: Text(_isLoadingWeather ? '' : 'Lấy TT'),
+                            style: ElevatedButton.styleFrom(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Hiển thị thời tiết (nếu có)
+                    if (_currentNote?.weather != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: _buildWeatherWidget(_currentNote!.weather!),
+                      ),
                     TextField(
                       controller: _titleController,
                       onChanged: _onTextChanged,
@@ -215,6 +321,129 @@ class _EditorScreenState extends State<EditorScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Widget hiển thị thông tin thời tiết
+  Widget _buildWeatherWidget(Weather weather) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Icon(Icons.cloud, size: 20, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Thời tiết: ${weather.city}, ${weather.country}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: Colors.blue,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Chi tiết thời tiết
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Nhiệt độ
+              Expanded(
+                child: Column(
+                  children: [
+                    const Icon(Icons.thermostat, size: 18, color: Colors.red),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${weather.temperature.toStringAsFixed(1)}°C',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Cảm: ${weather.feelsLike.toStringAsFixed(1)}°C',
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              // Độ ẩm
+              Expanded(
+                child: Column(
+                  children: [
+                    const Icon(Icons.opacity, size: 18, color: Colors.cyan),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${weather.humidity}%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'Độ ẩm',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              // Gió
+              Expanded(
+                child: Column(
+                  children: [
+                    const Icon(Icons.air, size: 18, color: Colors.teal),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${weather.windSpeed.toStringAsFixed(1)}m/s',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'Gió',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Mô tả
+          Row(
+            children: [
+              const Icon(Icons.description, size: 14, color: Colors.orange),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  weather.description,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

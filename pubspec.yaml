@@ -24,6 +24,9 @@ dependencies:
   # Định dạng ngày tháng
   intl: ^0.19.0
 
+  # UUID generator
+  uuid: ^4.0.0
+
   # Icon và font mặc định
   cupertino_icons: ^1.0.6
 
@@ -41,6 +44,10 @@ dependencies:
   # --- NHÓM THƯ VIỆN SUPABASE ---
   supabase_flutter: ^2.3.4
   supabase: ^2.0.8
+
+  # --- NHÓM THƯ VIỆN THỜI TIẾT ---
+  geolocator: ^9.0.2
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:

@@ -24,8 +24,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final authVM = context.read<AuthViewModel>();
       final noteVM = context.read<NoteViewModel>();
       final user = authVM.currentUser;
+
       if (user != null) {
-        noteVM.setUserId(user.uid);
+        // QUAN TRỌNG: Supabase sử dụng .id thay vì .uid như Firebase
+        noteVM.setUserId(user.id);
       }
     });
   }
@@ -49,12 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
-    // Bỏ qua lệnh vm.loadNotes() ở đây vì Stream đã tự động cập nhật
   }
 
   @override
   Widget build(BuildContext context) {
-    // Theo dõi ViewModel để cập nhật UI khi danh sách ghi chú thay đổi [cite: 1336]
+    // Theo dõi ViewModel để cập nhật UI khi danh sách ghi chú thay đổi
     final viewModel = context.watch<NoteViewModel>();
 
     return Scaffold(
@@ -94,8 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
-              onChanged: (value) => viewModel
-                  .search(value), // Lọc real-time cục bộ [cite: 511, 1373]
+              onChanged: (value) =>
+                  viewModel.search(value), // Lọc real-time cục bộ
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm tiêu đề...',
                 prefixIcon: const Icon(Icons.search, color: Colors.blue),
@@ -112,16 +113,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () =>
-            _navigateToEditor(context), // Mở màn hình tạo mới [cite: 1388-1390]
+        onPressed: () => _navigateToEditor(context), // Mở màn hình tạo mới
         child: const Icon(Icons.add, size: 30),
       ),
     );
   }
 
   Widget _buildMainContent(NoteViewModel viewModel) {
-    // Hiển thị trạng thái trống nếu Firebase chưa có dữ liệu [cite: 1395-1397]
-    if (viewModel.isEmpty || viewModel.notes.isEmpty) {
+    // Hiển thị trạng thái trống nếu Supabase chưa có dữ liệu
+    // Lưu ý: Đảm bảo NoteViewModel của bạn có getter `isEmpty`
+    if (viewModel.notes.isEmpty) {
       return Center(
         child: Opacity(
           opacity: 0.3,
@@ -146,14 +147,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: MasonryGridView.count(
-        crossAxisCount: 2, // Lưới 2 cột theo yêu cầu [cite: 1415]
+        crossAxisCount: 2, // Lưới 2 cột theo yêu cầu
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
         itemCount: viewModel.notes.length,
         itemBuilder: (context, index) {
           final note = viewModel.notes[index];
           return Dismissible(
-            key: Key(note.id), // ID từ Firestore Document [cite: 1422]
+            key: Key(note.id), // ID từ Supabase
             direction: DismissDirection.horizontal,
             background: Container(
               decoration: BoxDecoration(
@@ -170,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 builder: (context) => AlertDialog(
                   title: const Text('Xác nhận xóa'),
                   content: const Text(
-                      'Bạn có chắc chắn muốn xóa ghi chú này không?'), // [cite: 1434-1436]
+                      'Bạn có chắc chắn muốn xóa ghi chú này không?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -185,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
-            // Gọi hàm xóa trên Firestore [cite: 1458]
+            // Gọi hàm xóa trên Supabase
             onDismissed: (_) => viewModel.deleteNote(note.id),
             child: NoteCard(
               note: note,
@@ -202,8 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận đăng xuất'),
-        content: const Text(
-            'Bạn có chắc chắn muốn đăng xuất không?'), // [cite: 1466-1468]
+        content: const Text('Bạn có chắc chắn muốn đăng xuất không?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -212,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              authVM.logout(); // Xử lý đăng xuất [cite: 1477]
+              authVM.logout(); // Xử lý đăng xuất
             },
             child: const Text('Đăng xuất', style: TextStyle(color: Colors.red)),
           ),
