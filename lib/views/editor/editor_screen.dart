@@ -75,6 +75,7 @@ class _EditorScreenState extends State<EditorScreen> {
           createdAt: now,
           updatedAt: now,
           imagePath: _imagePath,
+          weather: _currentNote?.weather, // Giữ weather đã fetch từ city input
         );
         await viewModel.addNote(newNote);
         _currentNote = newNote;
@@ -84,6 +85,7 @@ class _EditorScreenState extends State<EditorScreen> {
           content: content,
           updatedAt: now,
           imagePath: _imagePath,
+          // Giữ nguyên weather hiện tại, không thay đổi
         );
         await viewModel.updateNote(updatedNote);
         _currentNote = updatedNote;

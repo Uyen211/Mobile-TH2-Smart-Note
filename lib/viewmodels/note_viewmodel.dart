@@ -55,22 +55,30 @@ class NoteViewModel extends ChangeNotifier {
       _isLoadingWeather = true;
       notifyListeners();
 
-      debugPrint('⏳ Đang lấy thời tiết (max 3s)...');
+      debugPrint('⏳ Đang xử lý thời tiết...');
 
-      // Fetch weather với timeout ngắn 3 giây
-      // Nếu quá lâu thì bỏ qua, lưu note trước
-      Weather? weather;
-      try {
-        weather = await _weatherService.fetchCurrentWeather().timeout(
-          const Duration(seconds: 3),
-          onTimeout: () {
-            debugPrint('⏱️ Timeout lấy thời tiết (>3s), tiếp tục lưu note...');
-            return null;
-          },
-        );
-      } catch (e) {
-        debugPrint('⚠️ Lỗi fetch weather: $e, tiếp tục không weather');
-        weather = null;
+      // Kiểm tra nếu note đã có weather (từ city input) - giữ nó
+      Weather? weather = note.weather;
+
+      if (weather == null) {
+        // Chỉ fetch current weather nếu note chưa có weather
+        debugPrint('🌍 Note chưa có weather, fetch current location...');
+        try {
+          weather = await _weatherService.fetchCurrentWeather().timeout(
+            const Duration(seconds: 3),
+            onTimeout: () {
+              debugPrint(
+                  '⏱️ Timeout lấy thời tiết (>3s), tiếp tục lưu note...');
+              return null;
+            },
+          );
+        } catch (e) {
+          debugPrint('⚠️ Lỗi fetch weather: $e, tiếp tục không weather');
+          weather = null;
+        }
+      } else {
+        debugPrint(
+            '✅ Note đã có weather từ city input: ${weather.city}, ${weather.country}');
       }
 
       if (weather != null) {
